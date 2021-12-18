@@ -16,9 +16,9 @@
 #ifndef CONFIG_H
 char ssid[] = "network";
 char pass[] = "password";
+String apiKey = "apikey";
 #endif
 
-String apiKey = "1e6af63a8290e81059e7aab6faf3ae70";
 String location = "dublin,IE";
 int status = WL_IDLE_STATUS; 
 char server[] = "api.openweathermap.org";     
