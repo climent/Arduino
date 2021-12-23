@@ -135,13 +135,13 @@ void loop()
       Serial.println("GMT date/time as received from NTP:");
 
       // get month, day and year 
-      //snprintf_P(d_mon_yr, countof(d_mon_yr), PSTR("%02u %s %04u"), day(t), monthShortStr(month(t)), year(t));
+      snprintf_P(d_mon_yr, countof(d_mon_yr), PSTR("%02u %s %04u"), day(t), monthShortStr(month(t)), year(t));
       //Serial.println(d_mon_yr);
 
       // get time
       // char tim_set[9];
       // snprintf_P(tim_set, countof(tim_set), PSTR("%02u:%02u:%02u"), hour(t), minute(t), second(t));
-      //snprintf_P(tim_set, countof(tim_set), PSTR("%02u:%02u"), hour(t), minute(t));
+      snprintf_P(tim_set, countof(tim_set), PSTR("%02u:%02u"), hour(t), minute(t));
       //Serial.println(tim_set);
 
       lcdPrintDay(weekday(t));
