@@ -24,7 +24,7 @@ int status = WL_IDLE_STATUS;
 char server[] = "api.openweathermap.org";     
 
 int delay_time =          20; // secs, update NTP time delay
-int delay_weather_time = 900; // secs, update openweather time delay
+int delay_weather_time = 600; // secs, update openweather time delay
 
 bool first_request = true;
 
@@ -135,14 +135,14 @@ void loop()
       Serial.println("GMT date/time as received from NTP:");
 
       // get month, day and year 
-      snprintf_P(d_mon_yr, countof(d_mon_yr), PSTR("%02u %s %04u"), day(t), monthShortStr(month(t)), year(t));
-      Serial.println(d_mon_yr);
+      //snprintf_P(d_mon_yr, countof(d_mon_yr), PSTR("%02u %s %04u"), day(t), monthShortStr(month(t)), year(t));
+      //Serial.println(d_mon_yr);
 
       // get time
       // char tim_set[9];
       // snprintf_P(tim_set, countof(tim_set), PSTR("%02u:%02u:%02u"), hour(t), minute(t), second(t));
-      snprintf_P(tim_set, countof(tim_set), PSTR("%02u:%02u"), hour(t), minute(t));
-      Serial.println(tim_set);
+      //snprintf_P(tim_set, countof(tim_set), PSTR("%02u:%02u"), hour(t), minute(t));
+      //Serial.println(tim_set);
 
       lcdPrintDay(weekday(t));
       lcd.setCursor(5,0);
@@ -205,7 +205,7 @@ void getWeather() {
   }
 
   Serial.println(doc["main"]["temp"]);
-  lcd.setCursor(11,1);
+  lcd.setCursor(10,1);
   lcd.print("T:");
   lcd.print(doc["main"]["temp"]);
 } 
