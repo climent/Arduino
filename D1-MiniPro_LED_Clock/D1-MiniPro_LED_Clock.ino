@@ -5,6 +5,7 @@
 #include <NTPClient.h>
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
+#include <EEPROM.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include "Adafruit_LEDBackpack.h"
@@ -20,6 +21,8 @@ Adafruit_AlphaNum4 matrix = Adafruit_AlphaNum4();
 char ssid[] = "network";
 char pass[] = "password";
 #endif
+
+#define DEBUG 1
 
 int hours =       0;
 int mins  =       0;
@@ -38,8 +41,13 @@ int summertimedelta;
 WiFiUDP udp;
 NTPClient timeClient(udp);
 
+// EEPROM 
+int DST_eeaddr =  2;
 uint DST_value =  0;
+int TZ_eeaddr =   3;
 uint TZ_value =   0;
+
+bool eeprom_needs_write = false;
 
 char displaybuffer[4] = {' ', ' ', ' ', ' '};
 
@@ -54,7 +62,10 @@ void setup()
 {
   Serial.begin(115200);
   Serial.println();
-  delay(1000);
+  delay(2000);
+  
+  // EEPROM
+  EEPROM.begin(512);
   
   // Matrix
   matrix.begin(0x70);  // pass in the address
@@ -102,6 +113,32 @@ void setup()
     Serial.print(".");
     delay(1000);
   }
+  // EEPROM initialization
+  Serial.print("EEPROM reading, address: ");
+  Serial.println(DST_eeaddr);
+  DST_value = EEPROM.read(DST_eeaddr);
+  delay(500);
+  if (DST_value != 0 && DST_value != 1) {
+    Serial.print("EEPROM DST_value is: ");
+    Serial.println(DST_value);
+    Serial.println("Initializing EEPROM DST_value to 0 (winter).");
+    DST_value = 0;
+    eeprom_needs_write = true;
+  } else {
+    if (DST_value == 0) { Serial.println("EEPROM DST_value is 0 (winter)");}
+    if (DST_value == 1) { Serial.println("EEPROM DST_value is 1 (summer)");}
+  }
+  Serial.print("EEPROM reading, address: ");
+  Serial.println(TZ_eeaddr);
+  TZ_value = EEPROM.read(TZ_eeaddr);
+  delay(500);
+  Serial.print("EEPROM TZ_value is: ");
+  Serial.println(TZ_value);
+  if (TZ_value < 0 || TZ_value > 23) { 
+    Serial.println("Initializing EEPROM TZ_value to 0 (Dublin).");
+    TZ_value = 0;
+    eeprom_needs_write = true;
+  }
 }
 
 void loop()
@@ -122,12 +159,15 @@ void loop()
       DST_value == 1 ? DST_value = 0 : DST_value = 1;
       if (DST_value) { Serial.println("Winter --> Summer"); }
       if (! DST_value) { Serial.println("Summer --> Winter"); }
+      eeprom_needs_write = true;
 			break;
     case 3:
-      TZ_value++;
+      // For now use only Dublin (0) and New York (19)
+      TZ_value == 19 ? TZ_value = 0 : TZ_value = 19;
       if (TZ_value > 23) { TZ_value = 0; }
       Serial.print("TZ value changed to ");
       Serial.println(TZ_value);
+      eeprom_needs_write = true;
       break;
 	}
   DST_value == 1 ?  summertimedelta = 1 : summertimedelta = 0;
@@ -167,7 +207,7 @@ void loop()
         Serial.print(secs);
       }
       if (DST_value == 0 || DST_value == 1) {
-        if (DST_value == 0) Serial.println(" DST winter");
+        if (DST_value == 0) Serial.println(" winter");
         if (DST_value == 1) Serial.println(" DST summer");
       } else {
         Serial.print("DST_value: ");
@@ -179,9 +219,11 @@ void loop()
 
   old_secs = secs;
   epoch = timeClient.getEpochTime();
+  //int fhours = hour(epoch);
+  mins = minute(epoch);
   secs = second(epoch);
 
-  int fhours = hours + TZ_value + summertimedelta;
+  int fhours = ((epoch + ((TZ_value + summertimedelta) * 3600)) % 86400L) / 3600;
   if (fhours > 23) { fhours = fhours - 24; }
 
   if (old_secs > 58 && secs == 0) {
@@ -205,6 +247,12 @@ void loop()
   //Draw the second digit of the minute
   matrix.writeDigitAscii(3, drawdigit(mins - ((mins / 10) * 10)));
   matrix.writeDisplay();
+
+  if (eeprom_needs_write) {
+    // Writing and reading from the EEPROM does not work in wemos?
+    updateEEPROM();
+    eeprom_needs_write = false;
+  }
 }
 
 // HELPER FUNCTIONS ============================================================
@@ -253,6 +301,43 @@ char drawdigit(int n)
     return '9';
     case 0:
     return '0';
+  }
+}
+
+// EEPROM ======================================================================
+
+void updateEEPROM()
+{
+  // If we push the DST button, change the DST_value and save it on our eeprom
+  // When we read the UTC time, we offset the output based on the time of the
+  // year (that is, if we are in DST).
+  Serial.print("Writing DST value in EEPROM: ");
+  Serial.print(DST_eeaddr);
+  Serial.print(", ");
+  Serial.println(DST_value);
+  Serial.print("Writing TZ value in EEPROM: ");
+  Serial.print(TZ_eeaddr);
+  Serial.print(", ");
+  Serial.println(TZ_value);
+  EEPROM.write(DST_eeaddr, DST_value);
+  EEPROM.write(TZ_eeaddr, TZ_value);
+
+  EEPROM.commit();
+  delay(500);
+
+  if (DEBUG) {
+    int DST_value_r = EEPROM.read(DST_eeaddr);
+    int TZ_value_r = EEPROM.read(TZ_eeaddr);
+    delay(500);
+    Serial.print("DST value in EEPROM is: ");
+    if (DST_value_r == 0 || DST_value_r == 1) {
+      if (DST_value_r == 0) Serial.println("0 / Winter");
+      if (DST_value_r == 1) Serial.println("1 / Summer");
+    } else {
+      Serial.println(DST_value_r);
+    }
+    Serial.print("TZ value in EEPROM is: ");
+    Serial.println(TZ_value_r);
   }
 }
 

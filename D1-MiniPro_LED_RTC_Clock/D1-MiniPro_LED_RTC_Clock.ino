@@ -1,64 +1,3 @@
-// #include <EEPROM.h>
-
-// void setup()
-// {
-//   Serial.begin(115200);
-//   delay(2000);
-
-//   uint addr = 0;
-
-//   // fake data
-//   struct { 
-//     uint val = 0;
-//     char str[20] = "";
-//   } data;
-
-//   // commit 512 bytes of ESP8266 flash (for "EEPROM" emulation)
-//   // this step actually loads the content (512 bytes) of flash into 
-//   // a 512-byte-array cache in RAM
-//   EEPROM.begin(512);
-
-//   // read bytes (i.e. sizeof(data) from "EEPROM"),
-//   // in reality, reads from byte-array cache
-//   // cast bytes into structure called data
-//   EEPROM.get(addr,data);
-//   Serial.println("Old values are: "+String(data.val)+","+String(data.str));
-
-//   // fiddle with the data "read" from EEPROM
-//   data.val += 5;
-//   if ( strcmp(data.str,"hello") == 0 )
-//       strncpy(data.str, "jerry",20);
-//   else 
-//       strncpy(data.str, "hello",20);
-
-//   // replace values in byte-array cache with modified data
-//   // no changes made to flash, all in local byte-array cache
-//   EEPROM.put(addr,data);
-
-//   // actually write the content of byte-array cache to
-//   // hardware flash.  flash write occurs if and only if one or more byte
-//   // in byte-array cache has been changed, but if so, ALL 512 bytes are 
-//   // written to flash
-//   EEPROM.commit();  
-
-//   // clear 'data' structure
-//   data.val = 0; 
-//   strncpy(data.str,"",20);
-
-//   // reload data for EEPROM, see the change
-//   //   OOPS, not actually reading flash, but reading byte-array cache (in RAM), 
-//   //   power cycle ESP8266 to really see the flash/"EEPROM" updated
-//   EEPROM.get(addr,data);
-//   Serial.println("New values are: "+String(data.val)+","+String(data.str));
-// }
-
-// void loop()
-// {
-//   delay(1000);
-// }
-// https://learn.adafruit.com/14-segment-alpha-numeric-led-featherwing/usage
-// https://github.com/adafruit/Adafruit_LED_Backpack/blob/master/Adafruit_LEDBackpack.cpp
-
 #include <TimeLib.h>
 #include <NTPClient.h>
 #include <ESP8266WiFi.h>
@@ -85,6 +24,8 @@ Adafruit_AlphaNum4 matrix = Adafruit_AlphaNum4();
 char ssid[] = "network";
 char pass[] = "password";
 #endif
+
+#define DEBUG 1
 
 int hours =         0;
 int mins  =         0;
@@ -124,7 +65,7 @@ void setup()
 {
   Serial.begin(115200);
   Serial.println();
-  delay(1000);
+  delay(2000);
   
   // Real Time Clock module
   Rtc.Begin();
@@ -193,24 +134,25 @@ void setup()
   }
 
   // EEPROM initialization
-  EEPROM.get(DST_eeaddr, DST_value);
+  DST_value = EEPROM.read(DST_eeaddr);
   delay(500);
   if (DST_value != 0 && DST_value != 1) {
     Serial.print("EEPROM DST_value is: ");
     Serial.println(DST_value);
-    Serial.println("Initializing EEPROM DST_value to 0 / winter.");
+    Serial.println("Initializing EEPROM DST_value to 0 (winter).");
     DST_value = 0;
     eeprom_needs_write = true;
   } else {
-    if (DST_value == 0) { Serial.println("EEPROM DST_value is 0 / winter");}
-    if (DST_value == 1) { Serial.println("EEPROM DST_value is 1 / summer");}
+    if (DST_value == 0) { Serial.println("EEPROM DST_value is 0 (winter)");}
+    if (DST_value == 1) { Serial.println("EEPROM DST_value is 1 (summer)");}
   }
-  EEPROM.get(TZ_eeaddr, TZ_value);
+  TZ_value = EEPROM.read(TZ_eeaddr);
+  delay(500);
   Serial.print("EEPROM TZ_value is: ");
   Serial.println(TZ_value);
   if (TZ_value < 0 || TZ_value > 23) { 
-    Serial.println("Initializing EEPROM TZ_value to 19 (New_York).");
-    TZ_value = 19;
+    Serial.println("Initializing EEPROM TZ_value to 0 (Dublin).");
+    TZ_value = 0;
     eeprom_needs_write = true;
   }
 }
@@ -289,7 +231,7 @@ void loop()
         Serial.print(secs);
       }
       if (DST_value == 0 || DST_value == 1) {
-        if (DST_value == 0) Serial.println(" DST winter");
+        if (DST_value == 0) Serial.println(" winter");
         if (DST_value == 1) Serial.println(" DST summer");
       } else {
         Serial.print("DST_value: ");
@@ -332,7 +274,7 @@ void loop()
 
   if (eeprom_needs_write) {
     // Writing and reading from the EEPROM does not work in wemos?
-    // updateEEPROM();
+    updateEEPROM();
     eeprom_needs_write = false;
   }
 }
@@ -411,23 +353,28 @@ void updateEEPROM()
   // year (that is, if we are in DST).
   Serial.print("Writing DST value in EEPROM: ");
   Serial.println(DST_value);
-  EEPROM.put(DST_eeaddr, DST_value);
-  EEPROM.put(TZ_eeaddr, TZ_value);
+  Serial.print("Writing TZ value in EEPROM: ");
+  Serial.println(TZ_value);
+  EEPROM.write(DST_eeaddr, DST_value);
+  EEPROM.write(TZ_eeaddr, TZ_value);
 
   EEPROM.commit();
+  delay(100);
 
-  // EEPROM.get(DST_eeaddr, DST_value);
-  // EEPROM.get(TZ_eeaddr, TZ_value);
-  
-  Serial.print("DST value in EEPROM is: ");
-  if (DST_value == 0 || DST_value == 1) {
-    if (DST_value == 0) Serial.println("0 / Winter");
-    if (DST_value == 1) Serial.println("1 / Summer");
-  } else {
-    Serial.println(DST_value);
+  if (DEBUG) {
+    int DST_value_r = EEPROM.read(DST_eeaddr);
+    int TZ_value_r = EEPROM.read(TZ_eeaddr);
+    
+    Serial.print("DST value in EEPROM is: ");
+    if (DST_value_r == 0 || DST_value_r == 1) {
+      if (DST_value_r == 0) Serial.println("0 / Winter");
+      if (DST_value_r == 1) Serial.println("1 / Summer");
+    } else {
+      Serial.println(DST_value_r);
+    }
+    Serial.print("TZ value in EEPROM is: ");
+    Serial.println(TZ_value_r);
   }
-  Serial.print("TZ value in EEPROM is: ");
-  Serial.println(TZ_value);
 }
 
 // BUTTON ======================================================================
